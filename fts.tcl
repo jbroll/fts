@@ -38,7 +38,7 @@
 	    } else {
 		set f $file
 		set F [string map [list [string range $pattern 1 end] {}] $::tmp/[file tail $file]]
-		set actions [list [string map [list %f $f @F $F] $action] $F]
+		set actions [list [string map [list %f $f @F $F] $action] "$F"]
 
 		if { [set action [filter? $F]] eq {} } {
 		    return {}
@@ -69,6 +69,7 @@
     try {
 	set body [exec -ignorestderr {*}[lindex [lindex $actions end] 0]] 
     } on error message {
+	puts "tried: [lindex [lindex $actions end] 0]"
 	puts $message
     } finally {
 	if { $tmpfiles ne {} } { exec rm -f $tmpfiles }
@@ -150,15 +151,16 @@
     }
  }
 
- set command  [lindex $argv 0]
- set config   [lindex $argv 1]
+ set config [file root [file tail $argv0]].conf
 
- if { $config eq {} } {
-    puts "fts: no config file"
-    exit 1
- } else {
-    try { source $::config } on error message { puts "fts: $message"; exit 1 }
- }
+ if { [lindex $argv 0] eq "@" } {
+     set config [string range 1 end [lindex $argv 0]]
+     set argv   [lrange $argv 1 end]
+ } 
+
+ try { source $::config } on error message { puts "fts: $message"; exit 1 }
+
+ set command  [lindex $argv 0]
 
  proc searchrank { matchinfo } {
     binary scan $matchinfo iiiii nphrase ncol 1 2 3
@@ -188,10 +190,10 @@
 	    verbosity is a comma separated list of the message types insert, update, unindexed
 	    , unchanged,exclude or a unique prefix of them.
 
-	fts search   <conf> <query>		- seach the index for query
-	fts excludes <conf>			- display the exclude patterns from <conf>
-	fts filters  <conf>			- display the filter  patterns from <conf>
-	fts docs				- display a table of documents in the index.
+	fts [@<conf>] search    <query>		- seach the index for query
+	fts [@<conf>] excludes 			- display the exclude patterns from <conf>
+	fts [@<conf>] filters  			- display the filter  patterns from <conf>
+	fts [@<conf>] docs			- display a table of documents in the index.
 
 	Config file commands:
 
@@ -204,7 +206,7 @@
 	  	%f  replacement
 		@F replacement with filter chaining.
 
-		File extension patterns are not case sensative
+		File extension patterns of the form "*.ext" are not case sensative
 
 	  exclude <glob-pattern> ...
 
@@ -230,7 +232,7 @@
     	foreach { path url rx } $::paths { index-path! $path $url [string map [list %p $path] $rx] }
   }
   search { 
-    set query    [lrange $argv 2 end]
+    set query    [lrange $argv 1 end]
 
     db eval { select docid, searchrank(matchinfo(searchtext)) as rank from searchtext
 	      where body match @query
@@ -241,11 +243,24 @@
     }
   }
   docs {
-    puts "rowid	mtime	fsize	url	file"
-    puts "-----	-----	-----	---	----"
-    db eval { select rowid, mtime, fsize, url, file from documents } {
-	puts "$rowid	$mtime	$fsize	$url	$file"
-    }
+      switch [lindex $argv 1] {
+	  rm {
+	      set docid [lindex $argv 2]
+	      db eval { 
+		begin  transaction  ;
+		delete from documents  where rowid = $docid ;
+		delete from searchtext where docid = $docid ;
+	        commit transaction
+	      }
+	  }
+	  default {
+	    puts "rowid	mtime	fsize	url	file"
+	    puts "-----	-----	-----	---	----"
+	    db eval { select rowid, mtime, fsize, url, file from documents } {
+		puts "$rowid	$mtime	$fsize	$url	$file"
+	    }
+	  }
+      }
   }
  }
 
