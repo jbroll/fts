@@ -5,10 +5,37 @@
  set  verb QUIET
  proc verb { type message } { if { [regexp $::verb $type] } { puts "[format %10.10s $type] : $message" } }
 
- set columnweight { 5 1 } 
+set wTitle 10
+set wBody   1
+
+
+ proc K { x y } { set x }
+ proc shift { V } { upvar $V v; K [lindex $v 0] [set v [lrange [K $v [unset v]] 1 end]] }
+ proc yank  { opt listName { default {} } } {
+     upvar $listName list
+
+     if { [set n [lsearch $list $opt]] < 0 } { return $default }
+
+     K [lindex $list $n+1] [set list [lreplace [K $list [unset list]] $n $n+1]]
+ }
+proc yink { opt listName { bool 1 } } {
+    upvar $listName list
+
+    if { [set n [lsearch $list $opt]] < 0 } {
+	if { $bool } {  return 0
+	} else {        return {} }
+    }
+
+    set list [lreplace [K $list [unset list]] $n $n]
+
+    if { $bool } {      return 1
+    } else {            return $opt }
+}
+
  
  proc database { database } { 
     if { [string index $database 0] ne "/" } { set ::database $::cfgdir/$database }
+    verb database $::cfgdir/$database
  }
 
  set excludes {}
@@ -22,7 +49,7 @@
  }
  proc exclude? { file } {
     foreach pattern $::excludes {
-	if { [string match $pattern $file] } { return 1 }
+	if { [string match $pattern $file] } { verb excluded $file ;  return 1 }
     }
 
     return 0
@@ -35,7 +62,7 @@
 		}
 		{<tr>
 		    <td><a href=\"$url\">[string map $pathmap $file]</a></td></tr>
-		    <td>$snip</td>
+		    <td>[string map { \n " " \f "" } $snip]</td>
 		    <td><small>[string map { { } {&nbsp;} } [clock format $mtime -format "%b %d %Y %T"]]</small></td>
 		    <td><small>[expr $fsize/1000]K</small></td>
 		}
@@ -157,7 +184,7 @@
 
 
     if { [db eval { select rowid from documents where file = $file }] eq {} } {
-	verb insert $file
+	verb insert "$tag $file $url"
 	db eval {
 	    begin  transaction  ;
 	    insert into  documents (  tag,  file,  mtime,  fsize,  url )
@@ -179,16 +206,21 @@
  }
 
  proc index-path  { tag path { url {\1} } { rx %p/(.*) } } { lappend ::paths $tag $path $url $rx }
- proc index-path! { tag path url rx } {
+ proc index-path! { tag path url rx force } {
     foreach dir [glob -type d -directory $path -nocomplain *] {
-	if { ![exclude? $dir/] } { index-path! $tag $dir $url $rx }
+	if { ![exclude? $dir/] } { index-path! $tag $dir $url $rx $force }
     }
-    foreach file [glob -type f -directory $path -nocomplain *] {
-	if { ![exclude? $file] } { index-file $tag $file [regsub $rx $file $url] }
+
+    if { [file type $path] ne "directory" } {
+	if { ![exclude? $path] } { index-file $tag $path [regsub $rx $path $url] $force }
+    } else {
+	foreach file [glob -type f -directory $path -nocomplain *] {
+	    if { ![exclude? $file] } { index-file $tag $file [regsub $rx $file $url] $force }
+	}
     }
  }
 
- proc searchrank { matchinfo } {
+ proc searchrank { matchinfo args } {
      set score 0
 
   try {
@@ -200,7 +232,7 @@
 
 	if { !$DocHits } { continue } 
 
-	set score [expr $score + $DocHits/ double($AllHits) * [lindex $::columnweight $c]]
+	set score [expr $score + $DocHits/ double($AllHits) * [lindex $args $c]]
      } }
   } on error message {
       puts stderr $message
@@ -213,21 +245,21 @@
  set config [file root $argv0].conf
 
  if { [string range [lindex $argv 0] 0 0] eq "@" } {
-     set config [string range [lindex $argv 0] 1 end]
-     set argv   [lrange $argv 1 end]
+     set config [string range [shift argv] 0 0]
  } 
 
  set cfgdir [file dirname $config]
 
  if { [string range [lindex $argv 0] 0 0] eq "+" } {
      set   verb [string range [lindex $argv 0] 1 end]
-     set ::verb ^(([string map { , .*)|( } $verb].*))$
+     if { $verb eq "+" } { set verb .*
+     } else {              set ::verb ^(([string map { , .*)|( } $verb].*))$ }
      set argv   [lrange $argv 1 end]
  }
 
  try { source $::config } on error message { puts "fts: $message"; exit 1 }
 
- set command  [lindex $argv 0]
+ set command  [shift argv]
 
  switch $command {
   excludes { foreach exclude $::excludes { puts $exclude } ; exit }
@@ -288,33 +320,27 @@
 
  switch $command {
   index  {
-    	if { [llength $argv] == 2 } {
-	    set files [lindex $argv 1] 
+        set force [yink -f argv 1]
 
-	    if { $files eq "-" } { set files [read stdin] } 
-
-	    foreach file $files {
-
-	        foreach { tag path url rx } $::paths {
-		    if { ![string first $path $file] } {
-		        index-file $tag $file [regsub [string map [list %p $path] $rx] $file $url] yes
-		    }
-	        }
+    	if { [llength $argv] == 0 } {
+	    foreach { tag path url rx } $::paths {
+		index-path! $tag $path $url [string map [list %p $path] $rx] $force
 	    }
 	} else {
-	    foreach { tag path url rx } $::paths {
-		index-path! $tag $path $url [string map [list %p $path] $rx]
+	    if { $argv eq "-" } { set files [read stdin] } 
+
+	    foreach file $argv {
+	        foreach { tag path url rx } $::paths {
+		    if { ![string first $path $file] } {
+		        index-path! $tag $file $url [string map [list %p $path] $rx] $force
+		    }
+	        }
 	    }
 	}
   }
   search { 
-    if { [lindex $argv 1] eq "-t" } {
- 	set template [lindex $argv 2]
-        set query    [lrange $argv 3 end]
-    } else {
-        set query    [lrange $argv 1 end]
- 	set template text
-    }
+    set template [yank -t argv text]
+    set query $argv
 
     set template $::templates($template)
 
@@ -324,7 +350,7 @@
 
     if { [lindex $template 0] ne {} } { puts [subst [lindex $template 0]] }
 
-    db eval { select docid, searchrank(matchinfo(searchtext)) as rank, snippet(searchtext) as snip 
+    db eval { select docid, searchrank(matchinfo(searchtext), $::wTitle, $::wBody) as rank, snippet(searchtext) as snip 
 	      from  searchtext
 	      where searchtext match $query
  	      order by rank desc; } {
@@ -336,19 +362,38 @@
     if { [lindex $template 2] ne {} } { puts [subst [lindex $template 2]] }
   }
   docs {
-      switch [lindex $argv 1] {
-	  rm {
-	      set docids [lrange $argv 2 end]
-	      if { $docids eq "-" } { set docids [read stdin] } 
+      verb docs $argv
+      set submethod [shift argv]
 
-	      foreach docid $docids {
+      switch $submethod {
+	rm {
+            verb docs-rm $argv
+	    set type [shift argv]
+
+	    if { $argv eq "-" } { set argv [read stdin] }
+
+	    if { $type eq "file" } {
+		set docids {}
+
+		foreach file $argv {
+		    db eval { select rowid from documents where file = $file } {
+		        verb docs-rm-file "$rowid : $file"
+			lappend docids $rowid
+		    }
+		}
+	    } else {
+		set docids $argv
+	    }
+
+	    foreach docid $docids {
+		  verb docs-rmid $docid
 	          db eval { 
 		    begin  transaction  ;
 		    delete from documents  where rowid = $docid ;
 		    delete from searchtext where docid = $docid ;
 	            commit transaction
 	          }
-	      }
+	    }
 	  }
 	  check {
 	    db eval { select rowid, mtime, fsize, url, file from documents } {
