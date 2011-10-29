@@ -18,7 +18,7 @@ set wBody   1
 
      K [lindex $list $n+1] [set list [lreplace [K $list [unset list]] $n $n+1]]
  }
-proc yink { opt listName { bool 1 } } {
+ proc yink { opt listName { bool 1 } } {
     upvar $listName list
 
     if { [set n [lsearch $list $opt]] < 0 } {
@@ -30,15 +30,19 @@ proc yink { opt listName { bool 1 } } {
 
     if { $bool } {      return 1
     } else {            return $opt }
-}
-
- 
- proc database { database } { 
-    if { [string index $database 0] ne "/" } { set ::database $::cfgdir/$database }
-    verb database $::cfgdir/$database
  }
 
- set excludes {}
+ proc config {} {
+     try { uplevel #0 { source $config } } on error message { puts "[file root $::argv0]: $message"; exit 1 }
+ }
+
+ proc database { database } { 
+    if { [string index $database 0] ne "/" } { set ::database $::cfgdir/$database
+    } else {				       set ::database           $database }
+
+    verb database $::database
+ }
+
  proc exclude  { args } {
     foreach pattern $args {
 	lappend ::excludes $pattern
@@ -130,10 +134,9 @@ proc yink { opt listName { bool 1 } } {
  proc stopwords { file } {
     if { [string index $file 0] ne "/" } { set file $::cfgdir/$file }
 
-    foreach word [split [read [set fp [open $file]]]] {
+    foreach word [split [K [read [set fp [open $file]]] [close $fp]]] {
 	set ::stops($word) 1
     }
-    close $fp
  }
 
  proc index-file { tag file url { force no } } {
@@ -161,19 +164,21 @@ proc yink { opt listName { bool 1 } } {
 
     set body [filter! $actions]
     set body [regsub -all {\m[-+]?([0-9]+\.?[0-9]*|\.[0-9]+)([eE][-+]?[0-9]+)?\M} $body { }]
-    set body [regsub -all {[,<>?\\~!@#$%^&*()_+]} $body { }]
+    set body [regsub -all {[^-:;,<>?\\~!@#$%^&*()_+ a-zA-Z0-9.]} $body { }]
+    set body [regsub -all  {[-:;,<>?\\~!@#$%^&*()_+.]{3,}} $body { }]
+    set body [regsub -all {[ \t\n]+} $body { }]
     set indx $body
 
     if { [info exists ::stops] } {
 	set indx {}
 
 	foreach word [split $body] {
-	    if { [string length $word] <= 2 } { continue }
+	    if { [string length $word] <= 2 }     { continue }
 	    if { [regexp {[[:lower:]]} $word] } {
 		if { [string length $word] <= 3 } { continue }
 		set word [string tolower $word]
 	    }
-	    if { [info exists ::stops($word)] } { continue }
+	    if { [info exists ::stops($word)] }   { continue }
 
 	    append indx $word " "
 	}
@@ -221,7 +226,7 @@ proc yink { opt listName { bool 1 } } {
  }
 
  proc searchrank { matchinfo args } {
-     set score 0
+  set score 0
 
   try {
      binary scan $matchinfo ii nphrase ncol
@@ -238,7 +243,7 @@ proc yink { opt listName { bool 1 } } {
       puts stderr $message
   }
 
-     return $score
+  return $score
  }
 
 
@@ -257,66 +262,117 @@ proc yink { opt listName { bool 1 } } {
      set argv   [lrange $argv 1 end]
  }
 
- try { source $::config } on error message { puts "fts: $message"; exit 1 }
+ proc usage { fp } {
+    puts $fp {
+	fts [@<conf>] check 			- check that all the documents in the index
+						  still exist.  Remove any that do not exist.
+	fts [@<conf>] index [<files>]	 	- create of update the search index
+	    
+	    If no additional arguments are given, index a set of directories
+	    indicated in the configuration file <conf> with the index-path directives.
+	    
+	    Or index the files (and directories) given on the command line.  When
+	    indexing files, they must be included within the paths covered by
+	    index-path directives in the configuration file.
 
- set command  [shift argv]
-
- switch $command {
-  excludes { foreach exclude $::excludes { puts $exclude } ; exit }
-  filters  { foreach { pattern action } $::filters { puts "[format %8.8s $pattern] : $action" } ; exit }
-
-  docs   -
-  index  -
-  search {
-    sqlite3 db $database
-    db function searchrank searchrank
-
-    catch { db eval { create virtual table searchtext using fts4(tokenize=porter, title text, body text); } }
-    catch { db eval { create table documents ( tag, file, mtime, fsize, url ) } }
-    catch { db eval { create index on documents ( file ) } }
-  }
-  default {
-    puts "fts: unknown subcommand \"$command\""
-    puts {
-	fts [@<conf>] index [<file>]	 	- index a set of directories indicated in <conf>
-
-		If the <file> aggument is given index the file.  Otherwise index all the index paths 
-		given in the configuration file.
-
-	fts [@<conf>] search    <query>		- seach the index for query
 	fts [@<conf>] excludes 			- display the exclude patterns from <conf>
 	fts [@<conf>] filters  			- display the filter  patterns from <conf>
-	fts [@<conf>] docs			- display a table of documents in the index.
+	fts [@<conf>] list 			- display a table of documents in the index.
+	fts [@<conf>] search [-t tmpl]  <query>	- seach the index for query
+
+	    The search command produces a table of search results...
+
+	    The optional -t allows specification of an optional template.  Two templates are 
+	    included on the source, text and html.  The default is text.
+
+	fts [@<conf>] rm docid <docids ..>	- remove documents by docid.
+	fts [@<conf>] rm file  <files  ..>	- remove documents by file path.
+
+	Finding the config file:
+
+	  The full path to the configuration file may be specified on the command line as the 
+	  first argument, prefixed with the "@" symbol.  If this is not specified the name of
+	  the executable will used as the name of the config file by suffixing ".conf" to it.
 
 	Config file commands:
 
-	  set tmp   <temporary-directory>	
+	  set tmp   <temporary-directory>
+
+	  set wTitle <weight of title text>	# Weight is positive a real number 
+	  set wBody  <weight of body text>
+
 	  database  <sqlite3-database-file>
 	  stopwords <stop-words-file>
 
-	  filter <glob-pattern> <extraction-command>
+	  filter <pattern> <extraction-command>
 
-	  	%f  replacement
-		@F replacement with filter chaining.
+	    Any indexing file candidate that matches the glob style pattern will have
+	    text extracted from it by executing the extraction command.  The "%f" and 
+	    "@F" tokens in the extraction command string will be replaced with the file
+	    name matching the pattern.  The extraction command will be executed and its
+	    standard output used as the text to index.
 
-		File extension patterns of the form "*.ext" are not case sensative
+	    If the replacement token "@F" is found in the extraction command string and
+	    the pattern  is of the form "*.xxx" the rule is chained.  The matched extension
+	    will be removed from the file name and the result will be matched against the
+	    list of extraction filters again.
+	   
+	    File extension patterns of the form "*.xxx" are not case sensative.
 
 	  exclude <glob-pattern> ...
 
 	  index-path <tag> <path> [url] [regexp]
-	  
-	  	Index all files in the path, recursing to subdirectories.
-		A url entry for the database is generated by calling:
+      
+	    Index all files in the path, recursing to subdirectories.
+	    A url entry for the database is generated by calling:
 
-		    set url [regsub $regexp $filepath $url]
-		    
-		The default values for url and regexp are {\1} and {%p(.*)}, where
-		%p is substituted with the indexed path.  This generates the 
-		file tail as the default url entry in search results.
-	}
+		set url [regsub $regexp $filepath $url]
+		
+	    The default values for url and regexp are {\1} and {%p(.*)}, where
+	    %p is substituted with the indexed path.  This generates the 
+	    file tail as the default url entry in search results.
+
+	  template name { header rows footer }
+
+	    Declair a template whose name may be used with the -t option to search.  The 
+	    template is a list of three strings that will be expanded with subst to produce
+	    the results of the search.  The first string is expanded before the search, it 
+	    represents the header of the result.  When the header string is expaneded with
+	    subst, the value $query is available.
+
+	    The seconds string is expanded once for each row. The values $rowid, $tag,
+	    $mtime, $fsize, $url, $file assiciated with the search result document are available
+	    with the string is expanded.
+
+	    The third string is expanded after the search results have been generated and
+	    represents the footer of the search results.
+
+	    If the result of any individual template expansion is an empty string the result is 
+	    ignored.  If the oranization of the search results needs to be returned in an order 
+	    different from the search ranking, the parts of a template to be utilized as callbacks
+	    where search results are accumulated in calls to the row template, transformed and
+	    returned in the footer.
+    }
     exit 1
-  } 
  }
+
+ if { ![llength $argv] } { usage stdout }
+
+ set command  [shift argv]
+
+ config
+
+ switch $command {
+  excludes { config; foreach exclude $::excludes { puts $exclude } ; exit }
+  filters  { config; foreach { pattern action } $::filters { puts "[format %8.8s $pattern] : $action" } ; exit }
+ }
+
+ sqlite3 db $database
+ db timeout 3000
+ db function searchrank searchrank
+
+ catch { db eval { create virtual table searchtext using fts4(tokenize=porter, title text, body text); } }
+ catch { db eval { create table documents ( tag, file, mtime, fsize, url ) } }
 
  switch $command {
   index  {
@@ -361,12 +417,29 @@ proc yink { opt listName { bool 1 } } {
 
     if { [lindex $template 2] ne {} } { puts [subst [lindex $template 2]] }
   }
-  docs {
-      verb docs $argv
+  list {
+      puts "rowid	tag	mtime	fsize	url	file"
+      puts "-----	---	-----	-----	---	----"
+      db eval { select rowid, tag, mtime, fsize, url, file from documents } {
+	  puts "$rowid	$tag	$mtime	$fsize	$url	$file"
+      }
+  }
+  check {
+    db eval { select rowid, mtime, fsize, url, file from documents } {
+	if { ![file exists $file] } {
+	  db eval { 
+	    begin  transaction  ;
+	    delete from documents  where rowid = $rowid ;
+	    delete from searchtext where docid = $rowid ;
+	    commit transaction
+	  }
+	}
+    }
+  }
+  rm {
       set submethod [shift argv]
 
       switch $submethod {
-	rm {
             verb docs-rm $argv
 	    set type [shift argv]
 
@@ -395,26 +468,6 @@ proc yink { opt listName { bool 1 } } {
 	          }
 	    }
 	  }
-	  check {
-	    db eval { select rowid, mtime, fsize, url, file from documents } {
-		if { ![file exists $file] } {
-	          db eval { 
-		    begin  transaction  ;
-		    delete from documents  where rowid = $rowid ;
-		    delete from searchtext where docid = $rowid ;
-	            commit transaction
-	          }
-		}
-	    }
-	  }
-	  default {
-	    puts "rowid	mtime	fsize	url	file"
-	    puts "-----	-----	-----	---	----"
-	    db eval { select rowid, mtime, fsize, url, file from documents } {
-		puts "$rowid	$mtime	$fsize	$url	$file"
-	    }
-	  }
       }
-  }
  }
 
