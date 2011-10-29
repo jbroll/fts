@@ -406,7 +406,7 @@ set wBody   1
 
     if { [lindex $template 0] ne {} } { puts [subst [lindex $template 0]] }
 
-    db eval { select docid, searchrank(matchinfo(searchtext), $::wTitle, $::wBody) as rank, snippet(searchtext) as snip 
+    db eval { select docid, title, searchrank(matchinfo(searchtext), $::wTitle, $::wBody) as rank, snippet(searchtext) as snip 
 	      from  searchtext
 	      where searchtext match $query
  	      order by rank desc; } {
