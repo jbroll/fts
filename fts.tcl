@@ -5,8 +5,9 @@
  set  verb QUIET
  proc verb { type message } { if { [regexp $::verb $type] } { puts "[format %10.10s $type] : $message" } }
 
-set wTitle 10
-set wBody   1
+ set wTitle    5
+ set wDescrip  3
+ set wBody     1
 
 
  proc K { x y } { set x }
@@ -184,8 +185,13 @@ set wBody   1
 	}
     }
 
-    if { [info proc $tag] ne {} } { set title [$tag Title $file]
-    } else { 			    set title [file root [file tail [string map { + { } _ { } - { } } $file]]] }
+    if { [info proc $tag] ne {} } {
+	set title   [$tag title   $file]
+	set descrip [$tag descrip $file]
+    } else { 
+	set title [file root [file tail [string map { + { } _ { } - { } } $file]]]
+    	set descrip {}
+    }
 
 
     if { [db eval { select rowid from documents where file = $file }] eq {} } {
@@ -247,46 +253,38 @@ set wBody   1
  }
 
 
- set config [file root $argv0].conf
-
- if { [string range [lindex $argv 0] 0 0] eq "@" } {
-     set config [string range [shift argv] 0 0]
- } 
-
- set cfgdir [file dirname $config]
-
- if { [string range [lindex $argv 0] 0 0] eq "+" } {
-     set   verb [string range [lindex $argv 0] 1 end]
-     if { $verb eq "+" } { set verb .*
-     } else {              set ::verb ^(([string map { , .*)|( } $verb].*))$ }
-     set argv   [lrange $argv 1 end]
- }
-
  proc usage { fp } {
     puts $fp {
-	fts [@<conf>] check 			- check that all the documents in the index
-						  still exist.  Remove any that do not exist.
-	fts [@<conf>] index [<files>]	 	- create of update the search index
+	fts check 			- check that all the documents in the index
+					  still exist.  Remove any that do not exist.
+	fts index [<files>]	 	- create of update the search index
 	    
 	    If no additional arguments are given, index a set of directories
-	    indicated in the configuration file <conf> with the index-path directives.
+	    indicated in the configuration file by the index-path directives.
 	    
-	    Or index the files (and directories) given on the command line.  When
-	    indexing files, they must be included within the paths covered by
-	    index-path directives in the configuration file.
+	    Or index the files (and directories) given on the command line.  The
+	    files given must be included within the paths covered by index-path
+	    directives in the configuration file.
 
-	fts [@<conf>] excludes 			- display the exclude patterns from <conf>
-	fts [@<conf>] filters  			- display the filter  patterns from <conf>
-	fts [@<conf>] list 			- display a table of documents in the index.
-	fts [@<conf>] search [-t tmpl]  <query>	- seach the index for query
+	    The full text index includes three column of text, a title, a description 
+	    and the body of text extracted from the file itself.  By default the title
+	    is the name of the file with "+" and "_" replaced with space and the 
+	    description is empty.  Alternate values for these columns can be provided
+	    by calling a group proc declaired in the index-path directive of the
+	    config file.
+
+	fts excludes 			- display the exclude patterns from <conf>
+	fts filters  			- display the filter  patterns from <conf>
+	fts list 			- display a table of documents in the index.
+	fts search [-t tmpl]  <query>	- seach the index for query
 
 	    The search command produces a table of search results...
 
-	    The optional -t allows specification of an optional template.  Two templates are 
-	    included on the source, text and html.  The default is text.
+	    The option -t allows specification of an optional template.  Two templates
+	    are included on the source, text and html.  The default is text.
 
-	fts [@<conf>] rm docid <docids ..>	- remove documents by docid.
-	fts [@<conf>] rm file  <files  ..>	- remove documents by file path.
+	fts rm docid <docids ..>	- remove documents by docid.
+	fts rm file  <files  ..>	- remove documents by file path.
 
 	Finding the config file:
 
@@ -298,8 +296,9 @@ set wBody   1
 
 	  set tmp   <temporary-directory>
 
-	  set wTitle <weight of title text>	# Weight is positive a real number 
-	  set wBody  <weight of body text>
+	  set wTitle  <weight of title match>	# Weight is positive a real number 
+	  set wDescip <weight of description match>
+	  set wBody   <weight of body match>
 
 	  database  <sqlite3-database-file>
 	  stopwords <stop-words-file>
@@ -330,7 +329,18 @@ set wBody   1
 		
 	    The default values for url and regexp are {\1} and {%p(.*)}, where
 	    %p is substituted with the indexed path.  This generates the 
-	    file tail as the default url entry in search results.
+	    file tail as the default url entry in the search results.
+
+	    The tag can be used to associate different directory trees of documents with
+	    a proc to provide title and description text to index.  If a proc with the
+	    same name as the tag is found it will be called with two args to retrieve this
+	    text.
+
+	        $tag title   <file>
+	        $tag descrip <file>
+
+	    The result of this call will be indexed in the associated column.  The value of 
+	    the title column is available for use in the search results template.
 
 	  template name { header rows footer }
 
@@ -341,8 +351,8 @@ set wBody   1
 	    subst, the value $query is available.
 
 	    The seconds string is expanded once for each row. The values $rowid, $tag,
-	    $mtime, $fsize, $url, $file assiciated with the search result document are available
-	    with the string is expanded.
+	    $mtime, $fsize, $url, $file, and $title assiciated with the search result document
+	    are available with the string is expanded.
 
 	    The third string is expanded after the search results have been generated and
 	    represents the footer of the search results.
@@ -354,6 +364,20 @@ set wBody   1
 	    returned in the footer.
     }
     exit 1
+ }
+
+ set config [file root $argv0].conf
+
+ if { [string range [lindex $argv 0] 0 0] eq "@" } {
+     set config [string range [shift argv] 1 end]
+ } 
+
+ set cfgdir [file dirname $config]
+
+ if { [string range [lindex $argv 0] 0 0] eq "+" } {
+     set   verb [string range [shift argv] 1 end]
+     if { $verb eq "+" } { set verb .*
+     } else {              set ::verb ^(([string map { , .*)|( } $verb].*))$ }
  }
 
  if { ![llength $argv] } { usage stdout }
@@ -371,7 +395,7 @@ set wBody   1
  db timeout 3000
  db function searchrank searchrank
 
- catch { db eval { create virtual table searchtext using fts4(tokenize=porter, title text, body text); } }
+ catch { db eval { create virtual table searchtext using fts4(tokenize=porter, title text, descrip text, body text); } }
  catch { db eval { create table documents ( tag, file, mtime, fsize, url ) } }
 
  switch $command {

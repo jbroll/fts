@@ -3,7 +3,7 @@
 
  proc iDoc { method args } {
     switch -exact -- $method {
-     Title {
+     title {
 	set docid [regsub {\..*$} [file tail [lindex $args 0]] {}] 
 
 	if { ![info exists ::iDoc] } {
