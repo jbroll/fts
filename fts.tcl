@@ -200,8 +200,8 @@
 	    begin  transaction  ;
 	    insert into  documents (  tag,  file,  mtime,  fsize,  url )
 			    values ( $tag, $file, $xtime, $xsize, $url ) ;
-	    insert into searchtext ( docid,                title,  body )
-			    values ( last_insert_rowid(), $title, $indx ) ;
+	    insert into searchtext ( docid,                title,  descrip,  body )
+			    values ( last_insert_rowid(), $title, $descrip, $indx ) ;
 	    commit transaction
 	}
     } else { 
@@ -209,7 +209,7 @@
 	db eval {
 	    begin  transaction  ;
 	    update  documents set mtime = $xtime, fsize = $xsize, url = $url where file = $file ;
-	    update searchtext set title = $title, body = $body
+	    update searchtext set title = $title, descrip = $descrip, body = $body
 		    where docid = ( select rowid from documents where file = $file ) ;
 	    commit transaction
 	} 
@@ -430,7 +430,7 @@
 
     if { [lindex $template 0] ne {} } { puts [subst [lindex $template 0]] }
 
-    db eval { select docid, title, searchrank(matchinfo(searchtext), $::wTitle, $::wBody) as rank, snippet(searchtext) as snip 
+    db eval { select docid, title, searchrank(matchinfo(searchtext), $::wTitle, $::wDescrip, $::wBody) as rank, snippet(searchtext) as snip 
 	      from  searchtext
 	      where searchtext match $query
  	      order by rank desc; } {
