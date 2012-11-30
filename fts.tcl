@@ -186,7 +186,7 @@
     }
 
     if { [info proc $tag] ne {} } {
-	set title   [$tag title   $file]
+	set title   [$tag title $file]
 	set descrip [$tag descrip $file]
     } else { 
 	set title [file root [file tail [string map { + { } _ { } - { } } $file]]]
@@ -461,37 +461,33 @@
     }
   }
   rm {
-      set submethod [shift argv]
+      verb docs-rm $argv
+      set type [shift argv]
 
-      switch $submethod {
-            verb docs-rm $argv
-	    set type [shift argv]
+      if { $argv eq "-" } { set argv [read stdin] }
 
-	    if { $argv eq "-" } { set argv [read stdin] }
+      switch $type {
+	file {
+	    set docids {}
 
-	    if { $type eq "file" } {
-		set docids {}
-
-		foreach file $argv {
-		    db eval { select rowid from documents where file = $file } {
-		        verb docs-rm-file "$rowid : $file"
+	    foreach file $argv {
+		db eval { select rowid from documents where file = $file } {
+		    verb docs-rm-file "$rowid : $file"
 			lappend docids $rowid
-		    }
 		}
-	    } else {
-		set docids $argv
 	    }
-
-	    foreach docid $docids {
-		  verb docs-rmid $docid
-	          db eval { 
-		    begin  transaction  ;
-		    delete from documents  where rowid = $docid ;
-		    delete from searchtext where docid = $docid ;
-	            commit transaction
-	          }
-	    }
-	  }
+	}
+	docid { set docids $argv }
       }
+
+    foreach docid $docids {
+	  verb docs-rmid $docid
+	  db eval { 
+	    begin  transaction  ;
+	    delete from documents  where rowid = $docid ;
+	    delete from searchtext where docid = $docid ;
+	    commit transaction
+	  }
+    }
  }
 
