@@ -1,0 +1,3 @@
+This tools is tested on CentOS system-it should also work on other unix systems.
+To install this tool, just copy pptx2txt.pl to appropriate place (e.g. /usr/bin directory)
+You are done with the installtion.
