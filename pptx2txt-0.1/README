@@ -1,0 +1,7 @@
+pptx2txt - tool is useful for extracting text from Microsoft Presentation pptx
+type files. 
+
+How to Use:
+      pptx2txt.pl presentation.pptx  outfile.txt 
+
+The outfile.txt should contain the text from presentation.pptx file

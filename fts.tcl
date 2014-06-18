@@ -186,7 +186,7 @@
     }
 
     if { [info proc $tag] ne {} } {
-	set title   [$tag title   $file]
+	set title   [$tag title $file]
 	set descrip [$tag descrip $file]
     } else { 
 	set title [file root [file tail [string map { + { } _ { } - { } } $file]]]
@@ -200,8 +200,8 @@
 	    begin  transaction  ;
 	    insert into  documents (  tag,  file,  mtime,  fsize,  url )
 			    values ( $tag, $file, $xtime, $xsize, $url ) ;
-	    insert into searchtext ( docid,                title,  body )
-			    values ( last_insert_rowid(), $title, $indx ) ;
+	    insert into searchtext ( docid,                title,  descrip,  body )
+			    values ( last_insert_rowid(), $title, $descrip, $indx ) ;
 	    commit transaction
 	}
     } else { 
@@ -209,7 +209,7 @@
 	db eval {
 	    begin  transaction  ;
 	    update  documents set mtime = $xtime, fsize = $xsize, url = $url where file = $file ;
-	    update searchtext set title = $title, body = $body
+	    update searchtext set title = $title, descrip = $descrip, body = $body
 		    where docid = ( select rowid from documents where file = $file ) ;
 	    commit transaction
 	} 
@@ -430,7 +430,7 @@
 
     if { [lindex $template 0] ne {} } { puts [subst [lindex $template 0]] }
 
-    db eval { select docid, title, searchrank(matchinfo(searchtext), $::wTitle, $::wBody) as rank, snippet(searchtext) as snip 
+    db eval { select docid, title, searchrank(matchinfo(searchtext), $::wTitle, $::wDescrip, $::wBody) as rank, snippet(searchtext) as snip 
 	      from  searchtext
 	      where searchtext match $query
  	      order by rank desc; } {
@@ -461,37 +461,34 @@
     }
   }
   rm {
-      set submethod [shift argv]
+      verb docs-rm $argv
+      set type [shift argv]
 
-      switch $submethod {
-            verb docs-rm $argv
-	    set type [shift argv]
+      if { $argv eq "-" } { set argv [read stdin] }
 
-	    if { $argv eq "-" } { set argv [read stdin] }
+      switch $type {
+	file {
+	    set docids {}
 
-	    if { $type eq "file" } {
-		set docids {}
-
-		foreach file $argv {
-		    db eval { select rowid from documents where file = $file } {
-		        verb docs-rm-file "$rowid : $file"
+	    foreach file $argv {
+		db eval { select rowid from documents where file = $file } {
+		    verb docs-rm-file "$rowid : $file"
 			lappend docids $rowid
-		    }
 		}
-	    } else {
-		set docids $argv
 	    }
-
-	    foreach docid $docids {
-		  verb docs-rmid $docid
-	          db eval { 
-		    begin  transaction  ;
-		    delete from documents  where rowid = $docid ;
-		    delete from searchtext where docid = $docid ;
-	            commit transaction
-	          }
-	    }
-	  }
+	}
+	docid { set docids $argv }
       }
+
+    foreach docid $docids {
+	  verb docs-rmid $docid
+	  db eval { 
+	    begin  transaction  ;
+	    delete from documents  where rowid = $docid ;
+	    delete from searchtext where docid = $docid ;
+	    commit transaction
+	  }
+    }
+  }
  }
 

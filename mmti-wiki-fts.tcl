@@ -1,13 +1,21 @@
 
  source $cfgdir/starbase.tcl
 
+# proc Files {
+#     switch -exact -- $method {
+#      title {
+#	set title [file root [file tail [string map { + { } _ { } - { } } $file]]]
+#      }
+#     }
+# }
+
  proc iDoc { method args } {
     switch -exact -- $method {
      title {
 	set docid [regsub {\..*$} [file tail [lindex $args 0]] {}] 
 
 	if { ![info exists ::iDoc] } {
-	    starbase_read iDoc /data/mmti/idoc-db/iDoc.db
+	    starbase_read iDoc /home/paige/idoc-db/iDoc.db
 	    starbase_foreachrow iDoc -colvars {
 		if { ![info exists ::DocTitle($DocID)] } {
 		    set ::DocTitle($DocID) $Title
@@ -40,7 +48,7 @@
  proc format-row { tag rank mtime fsize url file title snip } {
     switch $tag {
      Pages {
-	set page [string map { /data/mmti/paige/page/ {} } $file]
+	set page [string map { /home/paige/MMTI/page/ {} } $file]
 
         dict set ::Pages $page Page [list $rank $mtime $fsize $url $file $title $snip]
 	if { [dict exists $::Pages $page Rank] } {
@@ -50,7 +58,7 @@
 	}
      }
      Files {
-	set file [string map { /data/mmti/paige/file/ {} } $file]
+	set file [string map { /home/paige/MMTI/file/ {} } $file]
 	set page [file dirname $file]
 	set file [file tail $file]
 
@@ -63,7 +71,7 @@
 	}
      }
      iDoc  {
-	set file [string map { /data/mmti/idoc-db-docs/ {} } $file]
+	set file [string map { /home/paige/idoc-db-docs/ {} } $file]
 	
         lappend ::iDocs [list $rank $mtime $fsize $url $file $title $snip]
      }
@@ -121,7 +129,7 @@
 
     if { [info exists ::iDocs] } {
 
-	starbase_read iDoc /data/mmti/idoc-db/iDoc.db
+	starbase_read iDoc /home/paige/idoc-db/iDoc.db
 	starbase_foreachrow iDoc -colvars {
 	    set DocTitle($DocID) $Title
 	    if { $Deleted } { set DocDelet($DocID) 1 }

@@ -1,0 +1,4 @@
+v0.1 - Aug 24, 2009.
+-Very first version, completely based on Sandeep Kumar's work (http://docx2txt.sourceforge.net/)
+-Support to extract notes and content of slides.
+-tested on CentOS system
