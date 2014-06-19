@@ -1,6 +1,7 @@
 
 	fts check 			- check that all the documents in the index
 					  still exist.  Remove any that do not exist.
+
 	fts index [<files>]	 	- create of update the search index
 	    
 	    If no additional arguments are given, index a set of directories
