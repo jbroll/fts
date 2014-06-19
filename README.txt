@@ -1,9 +1,9 @@
 
 fts is a command line interface exposing the full text search capabilities of sqlite3.
 
-It indexes a directory tree of documentation and can extract text by excuting external 
-filter programs.  Open source filters for extracting text from .doc, .docx, .xlx, .xlsx,
-.ppt and .pdf are included in the distribution.
+It indexes a directory tree of documentation and can extract text by excuting
+external filter programs.  Open source filters for extracting text from .doc,
+.docx, .xlx, .xlsx, .ppt and .pdf are included in the distribution.
 
 
 
@@ -15,16 +15,16 @@ filter programs.  Open source filters for extracting text from .doc, .docx, .xlx
 	    If no additional arguments are given, index a set of directories
 	    indicated in the configuration file by the index-path directives.
 	    
-	    Or index the files (and directories) given on the command line.  The
-	    files given must be included within the paths covered by index-path
-	    directives in the configuration file.
+	    Or index the files (and directories) given on the command line.
+	    The files given must be included within the paths covered by
+	    index-path directives in the configuration file.
 
-	    The full text index includes three column of text, a title, a description 
-	    and the body of text extracted from the file itself.  By default the title
-	    is the name of the file with "+" and "_" replaced with space and the 
-	    description is empty.  Alternate values for these columns can be provided
-	    by calling a group proc declaired in the index-path directive of the
-	    config file.
+	    The full text index includes three column of text, a title, a
+	    description and the body of text extracted from the file itself.
+	    By default the title is the name of the file with "+" and "_"
+	    replaced with space and the description is empty.  Alternate values
+	    for these columns can be provided by calling a group proc declaired
+	    in the index-path directive of the config file.
 
 	fts excludes 			- display the exclude patterns from <conf>
 	fts filters  			- display the filter  patterns from <conf>
@@ -41,9 +41,10 @@ filter programs.  Open source filters for extracting text from .doc, .docx, .xlx
 
 	Finding the config file:
 
-	  The full path to the configuration file may be specified on the command line as the 
-	  first argument, prefixed with the "@" symbol.  If this is not specified the name of
-	  the executable will used as the name of the config file by suffixing ".conf" to it.
+	  The full path to the configuration file may be specified on the
+	  command line as the first argument, prefixed with the "@" symbol.  If
+	  this is not specified the name of the executable will used as the
+	  name of the config file by suffixing ".conf" to it.
 
 	Config file commands:
 
@@ -97,22 +98,25 @@ filter programs.  Open source filters for extracting text from .doc, .docx, .xlx
 
 	  template name { header rows footer }
 
-	    Declair a template whose name may be used with the -t option to search.  The 
-	    template is a list of three strings that will be expanded with subst to produce
-	    the results of the search.  The first string is expanded before the search, it 
-	    represents the header of the result.  When the header string is expaneded with
+	    Declair a template whose name may be used with the -t option to
+	    search.  The template is a list of three strings that will be
+	    expanded with subst to produce the results of the search.  The
+	    first string is expanded before the search, it represents the
+	    header of the result.  When the header string is expaneded with
 	    subst, the value $query is available.
 
-	    The seconds string is expanded once for each row. The values $rowid, $tag,
-	    $mtime, $fsize, $url, $file, and $title assiciated with the search result document
-	    are available with the string is expanded.
+	    The seconds string is expanded once for each row. The values
+	    $rowid, $tag, $mtime, $fsize, $url, $file, and $title assiciated
+	    with the search result document are available with the string is
+	    expanded.
 
-	    The third string is expanded after the search results have been generated and
-	    represents the footer of the search results.
+	    The third string is expanded after the search results have been
+	    generated and represents the footer of the search results.
 
-	    If the result of any individual template expansion is an empty string the result is 
-	    ignored.  If the oranization of the search results needs to be returned in an order 
-	    different from the search ranking, the parts of a template to be utilized as callbacks
-	    where search results are accumulated in calls to the row template, transformed and
-	    returned in the footer.
+	    If the result of any individual template expansion is an empty
+	    string the result is ignored.  If the oranization of the search
+	    results needs to be returned in an order different from the search
+	    ranking, the parts of a template to be utilized as callbacks where
+	    search results are accumulated in calls to the row template,
+	    transformed and returned in the footer.
     
