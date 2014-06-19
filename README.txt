@@ -1,4 +1,12 @@
 
+fts is a command line interface exposing the full text search capabilities of sqlite3.
+
+It indexes a directory tree of documentation and can extract text by excuting external 
+filter programs.  Open source filters for extracting text from .doc, .docx, .xlx, .xlsx,
+.ppt and .pdf are included in the distribution.
+
+
+
 	fts check 			- check that all the documents in the index
 					  still exist.  Remove any that do not exist.
 
