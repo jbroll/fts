@@ -26,7 +26,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 #
-# This script extracts text from document.xml contained inside .docx file.
+# This script extracts text from document.xml contained inside .pptx file.
 # Perl v5.8.2 was used for testing this script.
 #
 # Adjust the settings here.
